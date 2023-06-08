@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 
 class Interface {
   public:
@@ -27,22 +28,33 @@ class SelectInterface : public Interface {
   private:
     int selectedOption;
     int totalOptions;
+    std::vector<std::string> stringOptions;
+    bool num_mode;
 
   public:
     int on_key(int &ch) override {
+        int numOptions = num_mode ? totalOptions : stringOptions.size();
+        
         switch (ch) {
         case KEY_UP:
             selectedOption =
-                (selectedOption > 1) ? selectedOption - 1 : totalOptions;
+                (selectedOption > 0) ? selectedOption - 1 : numOptions-1;
+            break;
         case KEY_DOWN:
             selectedOption =
-                (selectedOption < totalOptions) ? selectedOption + 1 : 1;
+                (selectedOption < numOptions - 1) ? selectedOption + 1 : 0;
+            break;
         }
         // Display options
         printw("Please select an account:\n");
-        for (int i = 1; i <= totalOptions; i++) {
+        for (int i = 0; i < numOptions; i++) {
             std::string str = i == selectedOption ? "-> " : "   ";
-            printw((str + "Account %d\n").c_str(), i);
+            if (num_mode) {
+                printw((str + "Account %d\n").c_str(), i + 1);
+            } else {
+                printw((str + stringOptions[i] + "\n").c_str(), i);
+            }
+            
         }
         switch (ch) {
         case 10: // Enter key
@@ -54,8 +66,12 @@ class SelectInterface : public Interface {
         }
     }
 
-    SelectInterface(int totalOptions, int selectedOption = 1)
-        : selectedOption(selectedOption), totalOptions(totalOptions) {}
+    SelectInterface(int options, int selectedOption = 1)
+        : selectedOption(selectedOption), totalOptions(options), num_mode(true) {}
+
+    SelectInterface(std::vector<std::string> options, int selectedOption = 1)
+        : selectedOption(selectedOption), stringOptions(options), num_mode(false) {}
+
 };
 
 int main() {
@@ -63,7 +79,7 @@ int main() {
     cbreak();             // Line buffering disabled
     noecho();             // Don't display keypresses
     keypad(stdscr, TRUE); // Enable function keys
-
+    std::vector<std::string> options = {"Opt1", "Opt2"};
     SelectInterface account_select(3);
     int out = account_select(); // Call the functor like a function
     if (out == 0) {
