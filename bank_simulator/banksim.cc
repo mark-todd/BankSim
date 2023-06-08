@@ -7,7 +7,6 @@
 class Interface {
   public:
     virtual int on_key(int &ch) = 0;
-
     virtual void pre_key() {};
 
     virtual void post_key() {};
@@ -28,6 +27,22 @@ class Interface {
         endwin();
         throw std::runtime_error("Exited loop without return!");
     }
+};
+
+class TextInterface {
+    public:
+        virtual void pre_key() {};
+        virtual void post_key() {};
+        std::string operator()() {
+            char buffer[256];
+            pre_key();
+            echo();
+            getstr(buffer);
+            std::string output = buffer;
+            noecho();
+            post_key();
+            return output;
+        }
 };
 
 class VerticalInterface : public Interface {
@@ -77,10 +92,12 @@ class VerticalInterface : public Interface {
         : selectedOption(selectedOption), totalOptions(options), prefix(prefix),
           num_mode(true) {}
 
-    VerticalInterface(std::vector<std::string> options, int selectedOption = 0, std::string prefix = "Option")
-        : selectedOption(selectedOption), stringOptions(options), prefix(prefix),
+    VerticalInterface(std::vector<std::string> options, int selectedOption = 0)
+        : selectedOption(selectedOption), stringOptions(options),
           num_mode(false) {}
 };
+
+
 
 class AccountSelectInterface : public VerticalInterface {
     public:
@@ -102,6 +119,40 @@ class LoginSelectInterface : public VerticalInterface {
         : VerticalInterface(options, selectedOption) {}
 };
 
+namespace LoginOptions {
+    enum Enum {
+        Check_balance,
+        Withdraw,
+        Deposit
+    };
+    std::vector<std::string> Vector = {
+        "Check balance", 
+        "Withdraw", 
+        "Deposit"
+    };
+}
+
+class DepositInterface : public TextInterface {
+    private:
+        bool was_invalid = false;
+    public:
+        void pre_key() override {
+            if (was_invalid) {
+                printw("Invalid entry\n");
+            };
+            printw("How much would you like to deposit? : ");
+        };
+        double operator()() {
+            std::string out = TextInterface::operator()();
+            try {
+                return std::stod(out);
+            } catch (const std::invalid_argument& e) {
+                was_invalid = true;
+                return DepositInterface::operator()();
+            }
+        }
+};
+
 int main() {
     initscr();            // Initialize ncurses
     cbreak();             // Line buffering disabled
@@ -109,14 +160,23 @@ int main() {
     keypad(stdscr, TRUE); // Enable function keys
     AccountSelectInterface account_select(3);
 
-    int account_num = account_select(); // Call the functor like a function
+    int account_num = account_select();
     if (account_num == -1) {
         endwin();
         return 0;
     }
-    LoginSelectInterface login({"Check balance", "Withdraw", "Deposit"}, std::to_string(account_num));
+    LoginSelectInterface login(LoginOptions::Vector, std::to_string(account_num));
+    if (account_num == -1) {
+        endwin();
+        return 0;
+    }
     int login_selection = login();
+    LoginOptions::Enum option = static_cast<LoginOptions::Enum>(login_selection);
+    if (option == LoginOptions::Enum::Deposit) {
+        DepositInterface deposit;
+        double amount = deposit();
 
+    }
     endwin();
     return 0;
 }
