@@ -136,15 +136,17 @@ namespace LoginOptions {
     };
 }
 
-class DepositInterface : public TextInterface {
+class MoneyInterface : public TextInterface {
     private:
         bool was_invalid = false;
+        bool is_deposit;
     public:
         void pre_key() override {
             if (was_invalid) {
                 printw("Invalid entry\n");
             };
-            printw("How much would you like to deposit? : ");
+            std::string deposit_str = is_deposit ? "deposit" : "withdraw";
+            printw(("How much would you like to " + deposit_str + "? : ").c_str());
         };
         double operator()() {
             std::string out = TextInterface::operator()();
@@ -152,9 +154,10 @@ class DepositInterface : public TextInterface {
                 return std::stod(out);
             } catch (const std::invalid_argument& e) {
                 was_invalid = true;
-                return DepositInterface::operator()();
+                return MoneyInterface::operator()();
             }
         }
+        MoneyInterface(bool is_deposit) : is_deposit(is_deposit) {}
 };
 
 class CSVDatabase {
@@ -199,14 +202,17 @@ class CSVDatabase {
                 values.push_back(value);
             }
         }
-
+        double& operator[](int index) {
+            return values[index];
+        }
 
 };
 
 void interfaces(CSVDatabase& database) {
     AccountSelectInterface account_select(3);
     double amount;
-    DepositInterface deposit;
+    MoneyInterface deposit(true);
+    MoneyInterface withdraw(false);
     AccountSelect:
     if (database.n_accounts() < 3) {
         database.create_accounts(std::vector<double>(3 - database.n_accounts(), 0));
@@ -226,14 +232,15 @@ void interfaces(CSVDatabase& database) {
     switch (option) {
         case LoginOptions::Enum::Deposit:
             amount = deposit();
+            database[account_num] += amount;
             goto LoginSelect;
         case LoginOptions::Enum::Check_balance:
-            printw("Your balance is: ");
+            printw("Your balance is: %f", database[account_num]);
             getch();
             goto LoginSelect;
         case LoginOptions::Enum::Withdraw:
-            printw("Withdraw: ");
-            getch();
+            amount = withdraw();
+            database[account_num] -= amount;
             goto LoginSelect;
         case LoginOptions::Enum::Exit:
             goto AccountSelect;
@@ -246,7 +253,6 @@ int main() {
     noecho();             // Don't display keypresses
     keypad(stdscr, TRUE); // Enable function keys
     CSVDatabase database("test.csv");
-    getch();
     interfaces(database);
     database.save();
     endwin();
