@@ -3,6 +3,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <fstream>
+#include <boost/algorithm/string.hpp>
 
 class Interface {
   public:
@@ -123,12 +125,14 @@ namespace LoginOptions {
     enum Enum {
         Check_balance,
         Withdraw,
-        Deposit
+        Deposit,
+        Exit
     };
     std::vector<std::string> Vector = {
         "Check balance", 
         "Withdraw", 
-        "Deposit"
+        "Deposit",
+        "Exit"
     };
 }
 
@@ -153,30 +157,98 @@ class DepositInterface : public TextInterface {
         }
 };
 
+class CSVDatabase {
+    private:
+        std::vector<double> values;
+        std::string filename;
+    public:
+        CSVDatabase(std::string filename) : filename(filename) {
+            std::ifstream input(filename);
+            std::string line;
+
+            while (std::getline(input, line)) {
+                double value;
+                try {
+                    value = std::stod(line);
+                } catch (const std::invalid_argument& e) {
+                    throw std::runtime_error("File must contain doubles\n");
+                }
+                values.push_back(value);
+            }
+            input.close();
+        }
+
+        void save() {
+            std::ofstream output(filename, std::ios::trunc);
+            if (output.is_open()) {
+                for (const double& value : values) {
+                    output << value << std::endl;
+                }
+                output.close();
+            } else {
+                std::cerr << "Failed to open the file for writing." << std::endl;
+            }
+        }
+
+        int n_accounts () {
+            return values.size();
+        }
+
+        void create_accounts(std::vector<double> initial_values) {
+            for (const double& value : initial_values) {
+                values.push_back(value);
+            }
+        }
+
+
+};
+
+void interfaces(CSVDatabase& database) {
+    AccountSelectInterface account_select(3);
+    double amount;
+    DepositInterface deposit;
+    AccountSelect:
+    if (database.n_accounts() < 3) {
+        database.create_accounts(std::vector<double>(3 - database.n_accounts(), 0));
+    }
+    int account_num = account_select();
+    if (account_num == -1) {
+        return;
+    }
+
+    LoginSelect:
+    LoginSelectInterface login(LoginOptions::Vector, std::to_string(account_num));
+    int login_selection = login();
+    if (login_selection == -1) {
+        return;
+    }
+    LoginOptions::Enum option = static_cast<LoginOptions::Enum>(login_selection);
+    switch (option) {
+        case LoginOptions::Enum::Deposit:
+            amount = deposit();
+            goto LoginSelect;
+        case LoginOptions::Enum::Check_balance:
+            printw("Your balance is: ");
+            getch();
+            goto LoginSelect;
+        case LoginOptions::Enum::Withdraw:
+            printw("Withdraw: ");
+            getch();
+            goto LoginSelect;
+        case LoginOptions::Enum::Exit:
+            goto AccountSelect;
+    }
+}
+
 int main() {
     initscr();            // Initialize ncurses
     cbreak();             // Line buffering disabled
     noecho();             // Don't display keypresses
     keypad(stdscr, TRUE); // Enable function keys
-    AccountSelectInterface account_select(3);
-
-    int account_num = account_select();
-    if (account_num == -1) {
-        endwin();
-        return 0;
-    }
-    LoginSelectInterface login(LoginOptions::Vector, std::to_string(account_num));
-    int login_selection = login();
-    if (login_selection == -1) {
-        endwin();
-        return 0;
-    }
-    LoginOptions::Enum option = static_cast<LoginOptions::Enum>(login_selection);
-    if (option == LoginOptions::Enum::Deposit) {
-        DepositInterface deposit;
-        double amount = deposit();
-
-    }
+    CSVDatabase database("test.csv");
+    getch();
+    interfaces(database);
+    database.save();
     endwin();
     return 0;
 }
