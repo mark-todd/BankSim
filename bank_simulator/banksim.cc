@@ -166,11 +166,11 @@ int main() {
         return 0;
     }
     LoginSelectInterface login(LoginOptions::Vector, std::to_string(account_num));
-    if (account_num == -1) {
+    int login_selection = login();
+    if (login_selection == -1) {
         endwin();
         return 0;
     }
-    int login_selection = login();
     LoginOptions::Enum option = static_cast<LoginOptions::Enum>(login_selection);
     if (option == LoginOptions::Enum::Deposit) {
         DepositInterface deposit;
